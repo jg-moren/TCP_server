@@ -7,11 +7,11 @@
 #include <pthread.h>
 #include <string.h>
 
-char NOME_USUARIO[TAM_MENSAGEM]; 
-char IP_USUARIO[TAM_MENSAGEM];          
-char cPORTA_USUARIO[TAM_MENSAGEM];
-int PORTA_USUARIO;
-char IP_SERVIDOR[TAM_MENSAGEM];
+const char NOME_USUARIO[TAM_MENSAGEM]; 
+const char IP_USUARIO[TAM_MENSAGEM];          
+const char cPORTA_USUARIO[TAM_MENSAGEM];
+const int PORTA_USUARIO;
+const char IP_SERVIDOR[TAM_MENSAGEM];
 
 pthread_mutex_t m_r;
 
