@@ -123,7 +123,7 @@ void menu()
     int sock = criar_socket(PORTA_SERVIDOR_TCP);
     char mensagem[TAM_MENSAGEM];
     char tipo;
-    char tam_str[3];
+    char tam_str[4];
     int tam;
 
     

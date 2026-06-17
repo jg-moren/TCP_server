@@ -7,29 +7,76 @@
 #include <pthread.h>
 #include <string.h>
 
-const char NOME_USUARIO[TAM_MENSAGEM]; 
-const char IP_USUARIO[TAM_MENSAGEM];          
-const char cPORTA_USUARIO[TAM_MENSAGEM];
-const int PORTA_USUARIO;
-const char IP_SERVIDOR[TAM_MENSAGEM];
+char NOME_USUARIO[TAM_MENSAGEM];
+char IP_USUARIO[TAM_MENSAGEM];
+char cPORTA_USUARIO[TAM_MENSAGEM];
+int PORTA_USUARIO;
+char IP_SERVIDOR[TAM_MENSAGEM];
 
 pthread_mutex_t m_r;
+
+#define MAX_HISTORICO 5
+
+char historico[MAX_HISTORICO][TAM_MENSAGEM];
+int  hist_count = 0;   /* quantas posições preenchidas (0..MAX_HISTORICO) */
+int  hist_next  = 0;   /* próxima posição a escrever (circular) */
+pthread_mutex_t m_hist;
+
+void adicionar_historico(const char *msg)
+{
+    pthread_mutex_lock(&m_hist);
+
+    strncpy(historico[hist_next], msg, TAM_MENSAGEM - 1);
+    historico[hist_next][TAM_MENSAGEM - 1] = '\0';
+
+    hist_next = (hist_next + 1) % MAX_HISTORICO;
+    if(hist_count < MAX_HISTORICO)
+        hist_count++;
+
+    pthread_mutex_unlock(&m_hist);
+}
+
+void mostrar_historico()
+{
+
+    pthread_mutex_lock(&m_hist);
+
+    int inicio = (hist_next - hist_count + MAX_HISTORICO) % MAX_HISTORICO;
+
+    printf("\n--- Ultimas %d mensagens ---\n", hist_count);
+    for(int i = 0; i < hist_count; i++)
+    {
+        int idice = (inicio + i) % MAX_HISTORICO;
+        printf("%s\n", historico[idice]);
+    }
+    printf("---------------------------\n");
+    fflush(stdout);
+
+    pthread_mutex_unlock(&m_hist);
+}
 
 void *receber(void *param)
 {
     int sock = criar_socket(PORTA_USUARIO);
     char mensagem[TAM_MENSAGEM];
-    
+
     memset((void *) mensagem,(int) NULL, sizeof(mensagem));
-    
+
     for(;;)
     {
         int status = socket_receber_mensagem(mensagem, sock);
         if(status == 200)
         {
+            char copia[TAM_MENSAGEM];
+
             pthread_mutex_lock(&m_r);
             printf("\nTCP cliente: (%s)\n",mensagem);fflush(stdout);
+            strncpy(copia, mensagem, TAM_MENSAGEM - 1);
+            copia[TAM_MENSAGEM - 1] = '\0';
             pthread_mutex_unlock(&m_r);
+
+            /* Fora do lock de m_r para não aninhar mutexes */
+            adicionar_historico(copia);
         }
     }
 }
@@ -37,18 +84,11 @@ void *receber(void *param)
 int registro()
 {
     char mensagem[TAM_MENSAGEM];
-    memset((void *) mensagem,(int) NULL, sizeof(mensagem));
-    strcat(mensagem, "R000");
-    strcat(mensagem, NOME_USUARIO);
-    strcat(mensagem, "|");
-    strcat(mensagem, IP_USUARIO);
-    strcat(mensagem, "|");
-    strcat(mensagem, cPORTA_USUARIO);
-    strcat(mensagem, "|");
-    int tam = strlen(mensagem) - 4;
-    //mensagem[1] = '0' + (tam / 100) % 10; 
-    //mensagem[2] = '0' + (tam / 10) % 10; 
-    //mensagem[3] = '0' + (tam / 1) % 10; 
+    snprintf(mensagem, sizeof(mensagem), "R000%s|%s|%s|",
+             NOME_USUARIO, IP_USUARIO, cPORTA_USUARIO);
+    //mensagem[1] = '0' + (tam / 100) % 10;
+    //mensagem[2] = '0' + (tam / 10) % 10;
+    //mensagem[3] = '0' + (tam / 1) % 10;
 
     printf("%s\n", mensagem);
     int status = socket_enviar_mensagem(mensagem, IP_SERVIDOR, PORTA_SERVIDOR_TCP);
@@ -70,6 +110,7 @@ void menu()
     pthread_t t_receber;
 
     pthread_mutex_init(&m_r,NULL);
+    pthread_mutex_init(&m_hist,NULL);
 
     // chamada das pthreads
     if(0 || pthread_create(&t_receber,NULL,receber,NULL)) {
@@ -80,31 +121,28 @@ void menu()
     char texto[TAM_MENSAGEM];
 
 
-    for(;;)
+    while (scanf("%254s", texto) == 1)
     {
-
-        scanf("%s", texto);
-
         char mensagem[TAM_MENSAGEM];
-        memset((void *) mensagem,(int) NULL, TAM_MENSAGEM);
-        strcat(mensagem, "D000");
-        strcat(mensagem, NOME_USUARIO);
-        strcat(mensagem, "|");
-        strcat(mensagem, texto);
-        strcat(mensagem, "|");
-        int tam = strlen(mensagem) - 4;
-        mensagem[1] = (char)('0' + (tam / 100) % 10); 
-        mensagem[2] = (char)('0' + (tam / 10) % 10); 
-        mensagem[3] = (char)('0' + (tam / 1) % 10); 
-
-
+        snprintf(mensagem, sizeof(mensagem), "D000%s|%s|", NOME_USUARIO, texto);
+        int tam = (int)strlen(mensagem) - 4;
+        mensagem[1] = (char)('0' + (tam / 100) % 10);
+        mensagem[2] = (char)('0' + (tam / 10) % 10);
+        mensagem[3] = (char)('0' + (tam / 1) % 10);
 
         socket_enviar_mensagem(mensagem, IP_SERVIDOR, PORTA_SERVIDOR_TCP);
 
+        /* Guarda a mensagem enviada no histórico (forma legível) */
+        char entrada[TAM_MENSAGEM];
+        snprintf(entrada, sizeof(entrada), "Voce: %s", texto);
+        adicionar_historico(entrada);
+
+        mostrar_historico();
     }
 
     pthread_kill(t_receber, 0);
     pthread_mutex_destroy(&m_r);
+    pthread_mutex_destroy(&m_hist);
 }
 
 int main(int argc, char *argv[])

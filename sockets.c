@@ -134,7 +134,8 @@ int receber_mensagem(char *mensagem,int sock)
         }
     }
 
-    strcat(mensagem, &tipo);
+    mensagem[0] = tipo;
+    mensagem[1] = '\0';
     strcat(mensagem, valtam);
     strcat(mensagem, texto);
 
@@ -171,21 +172,17 @@ int socket_enviar_mensagem(char *mensagem, char *IP, int PORTA)
     if (resultado < 0)
     {
         printf("\nErro no recebimento da mensagem\n");
+        close(sock);
         return(500);
     }
 
     close(sock);
 
-    return 200;
-
-    if(mensagem[0] == 'A')
+    if (mensagem[0] == 'A')
     {
         return (200);
     }
-    else 
-    {
-        return (500);
-    }
+    return (500);
 }
 
 int socket_receber_mensagem(char *mensagem, int sock)
