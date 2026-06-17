@@ -53,7 +53,7 @@ int remover_cliente(const char *nome)
     {
         if(strcmp(clientes[i].nome, nome) == 0)
         {
-            for(j = i; j < qtd_clientes - 1; j++)
+            for(j = i; j < MAX_CLIENTES; j++)
             {
                 clientes[j] = clientes[j + 1];
             }
